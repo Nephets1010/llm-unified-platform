@@ -1,0 +1,103 @@
+# Prometheus 告警规则（T11）
+# 部署：prometheus.yml → rule_files → alerts.yml
+
+groups:
+  - name: llm_platform_availability
+    rules:
+      - alert: HighErrorRate
+        expr: rate(llm_errors_total[5m]) / rate(llm_requests_total[5m]) > 0.05
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "错误率超过 5%"
+          description: "过去 5 分钟错误率 {{ $value | humanizePercentage }}，超过阈值 5%"
+
+      - alert: HighLatencyP95
+        expr: histogram_quantile(0.95, rate(llm_request_latency_seconds_bucket[5m])) > 5
+        for: 3m
+        labels:
+          severity: warning
+        annotations:
+          summary: "P95 延迟超过 5s"
+          description: "P95 延迟 {{ $value | humanize }}s，超过阈值 5s"
+
+      - alert: HighFirstTokenLatency
+        expr: histogram_quantile(0.95, rate(llm_first_token_latency_seconds_bucket[5m])) > 3
+        for: 3m
+        labels:
+          severity: warning
+        annotations:
+          summary: "首 token P95 延迟超过 3s"
+          description: "首 token P95 {{ $value | humanize }}s"
+
+  - name: llm_platform_circuit
+    rules:
+      - alert: CircuitBreakerOpen
+        expr: llm_circuit_state == 1
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "熔断器打开"
+          description: "端点 {{ $labels.endpoint_id }} 熔断器已打开"
+
+      - alert: HighFailoverRate
+        expr: rate(llm_failover_total[5m]) > 1
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "failover 频繁触发"
+          description: "过去 5 分钟 failover 速率 {{ $value | humanize }}/s"
+
+  - name: llm_platform_budget
+    rules:
+      - alert: BudgetExceeded80
+        expr: llm_budget_used_ratio > 0.8 and llm_budget_used_ratio <= 1.0
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "预算使用超过 80%"
+          description: "租户 {{ $labels.tenant }} 预算使用 {{ $value | humanizePercentage }}"
+
+      - alert: BudgetExceeded100
+        expr: llm_budget_used_ratio > 1.0
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: "预算已超支"
+          description: "租户 {{ $labels.tenant }} 预算使用 {{ $value | humanizePercentage }}"
+
+  - name: llm_platform_calllog
+    rules:
+      - alert: CallLogDropped
+        expr: rate(llm_calllog_dropped_total[5m]) > 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "call_log 缓冲溢出丢弃"
+          description: "call_log 丢弃速率 {{ $value | humanize }}/s"
+
+      - alert: CallLogFlushErrors
+        expr: rate(llm_calllog_flush_errors_total[5m]) > 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "call_log 写入失败"
+          description: "call_log flush 错误速率 {{ $value | humanize }}/s"
+
+  - name: llm_platform_rate_limit
+    rules:
+      - alert: HighRateLimited
+        expr: rate(llm_rate_limited_total[5m]) > 10
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "限流触发频繁"
+          description: "限流速率 {{ $value | humanize }}/s，维度 {{ $labels.dimension }}"

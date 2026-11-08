@@ -1,0 +1,119 @@
+{
+  "dashboard": {
+    "title": "LLM Platform - Resilience & Routing",
+    "uid": "llm-resilience-routing",
+    "tags": ["llm-platform", "resilience", "routing"],
+    "timezone": "browser",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Circuit Breaker States",
+        "type": "stat",
+        "gridPos": {"h": 8, "w": 8, "x": 0, "y": 0},
+        "targets": [
+          {
+            "expr": "llm_circuit_state",
+            "legendFormat": "endpoint {{endpoint_id}}",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "mappings": [
+              {"type": "value", "options": {"0": {"text": "CLOSED", "color": "green"}, "1": {"text": "OPEN", "color": "red"}, "2": {"text": "HALF_OPEN", "color": "yellow"}}}
+            ],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"color": "green", "value": null},
+                {"color": "yellow", "value": 1},
+                {"color": "red", "value": 2}
+              ]
+            }
+          },
+          "overrides": []
+        }
+      },
+      {
+        "id": 2,
+        "title": "Failover Events",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 8, "x": 8, "y": 0},
+        "targets": [
+          {
+            "expr": "sum(rate(llm_failover_total[5m])) by (model, reason)",
+            "legendFormat": "{{model}} - {{reason}}",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {"unit": "short", "min": 0},
+          "overrides": []
+        }
+      },
+      {
+        "id": 3,
+        "title": "Route Hits by Strategy",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 8, "x": 16, "y": 0},
+        "targets": [
+          {
+            "expr": "sum(rate(llm_route_hits_total[5m])) by (strategy)",
+            "legendFormat": "{{strategy}}",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {"unit": "short", "min": 0},
+          "overrides": []
+        }
+      },
+      {
+        "id": 4,
+        "title": "CallLog Buffer Stats",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+        "targets": [
+          {
+            "expr": "rate(llm_calllog_flushed_total[5m])",
+            "legendFormat": "flushed",
+            "refId": "A"
+          },
+          {
+            "expr": "rate(llm_calllog_dropped_total[5m])",
+            "legendFormat": "dropped",
+            "refId": "B"
+          },
+          {
+            "expr": "rate(llm_calllog_flush_errors_total[5m])",
+            "legendFormat": "errors",
+            "refId": "C"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {"unit": "short", "min": 0},
+          "overrides": []
+        }
+      },
+      {
+        "id": 5,
+        "title": "Eval Task Duration P95",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(llm_eval_task_duration_seconds_bucket[5m]))",
+            "legendFormat": "P95",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {"unit": "s", "min": 0},
+          "overrides": []
+        }
+      }
+    ],
+    "refresh": "10s",
+    "time": {"from": "now-1h", "to": "now"}
+  }
+}

@@ -1,0 +1,91 @@
+# ============================================================
+# Docker Compose — 一键部署
+# 服务: api / postgres / redis / prometheus / grafana
+# ============================================================
+
+services:
+  api:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - LLM_ENVIRONMENT=dev
+      - LLM_DATABASE_URL=postgresql+psycopg://llm:llm_dev_pw@postgres:5432/llm_platform
+      - LLM_REDIS_URL=redis://redis:6379/0
+      - LLM_JWT_SECRET=${LLM_JWT_SECRET:-change-me-in-production}
+      - LLM_OPENAI_API_KEY=${LLM_OPENAI_API_KEY:-}
+      - LLM_DEEPSEEK_API_KEY=${LLM_DEEPSEEK_API_KEY:-}
+      - LLM_QWEN_API_KEY=${LLM_QWEN_API_KEY:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/healthz')"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: llm
+      POSTGRES_PASSWORD: llm_dev_pw
+      POSTGRES_DB: llm_platform
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U llm -d llm_platform"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - promdata:/prometheus
+    depends_on:
+      - api
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    volumes:
+      - grafdata:/var/lib/grafana
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  redisdata:
+  promdata:
+  grafdata:
