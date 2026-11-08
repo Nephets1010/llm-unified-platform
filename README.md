@@ -104,10 +104,10 @@ cp .env.example .env
 # 编辑 .env 填入真实 API Key 和 JWT Secret
 
 # 3. 起栈（PostgreSQL + Redis + 应用）
-docker compose up -d
+docker compose -f deploy/docker-compose.yml up -d
 
 # 4. 执行数据库迁移
-docker compose exec app alembic upgrade head
+docker compose -f deploy/docker-compose.yml exec app alembic upgrade head
 
 # 5. 验证
 curl http://localhost:8000/healthz
@@ -123,7 +123,7 @@ python -m venv .venv && source .venv/bin/activate  # Windows: .venv\Scripts\acti
 # 2. 安装依赖
 pip install -e ".[dev]"
 
-# 3. 启动 PostgreSQL 和 Redis（或 docker compose up -d postgres redis）
+# 3. 启动 PostgreSQL 和 Redis（或 docker compose -f deploy/docker-compose.yml up -d postgres redis）
 
 # 4. 配置环境变量
 cp .env.example .env
@@ -137,11 +137,13 @@ uvicorn llm_platform.main:app --reload --port 8000
 
 ### 一键演示
 
+需先启动服务（方式一或方式二），然后执行：
+
 ```bash
 bash scripts/demo_quickstart.sh
 ```
 
-自动完成：起服务 → seed 租户/Key/端点 → 加载 200 条基准集 → 发起 chat 请求 → 跑评测 → 导出账单。
+自动完成：检查服务→seed 租户/Key/端点→加载 200 条基准集→发起 chat 请求→跑评测→导出账单。
 
 ## 配置说明
 
@@ -150,7 +152,7 @@ bash scripts/demo_quickstart.sh
 | 变量 | 默认值 | 说明 |
 |------|--------|------|
 | `LLM_ENVIRONMENT` | `dev` | 运行环境（dev/staging/prod） |
-| `LLM_DATABASE_URL` | `postgresql+psycopg://...` | PostgreSQL 连接串 |
+| `LLM_DATABASE_URL` | `sqlite:///./llm_platform.db` | 数据库连接串（默认 SQLite，生产用 PostgreSQL） |
 | `LLM_REDIS_URL` | `redis://localhost:6379/0` | Redis 连接串 |
 | `LLM_JWT_SECRET` | *(必填)* | JWT 签名密钥（生产必须替换） |
 | `LLM_JWT_EXPIRE_MINUTES` | `60` | JWT 过期时间（分钟） |
@@ -212,7 +214,7 @@ python -m pytest tests/ -q
 ruff check src/ tests/
 
 # Docker Compose 配置校验
-docker compose config -q
+docker compose -f deploy/docker-compose.yml config -q
 
 # 密钥扫描（CI 自动执行）
 gitleaks detect --source .

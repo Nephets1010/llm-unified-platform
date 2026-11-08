@@ -47,9 +47,9 @@
 ### 3.1 全量测试
 ```
 $ python -m pytest tests/ -q --tb=no
-243 passed, 1 skipped, 42 warnings in 89.61s
+243 passed, 1 skipped, 42 warnings in 88.79s
 ```
-- 243 passed（M3 返工后基线）
+- 243 passed
 - 1 skipped（promtool 本地无此工具，QA 已注明）
 - 0 failed
 
@@ -60,19 +60,28 @@ $ python -m ruff check src/ tests/ --quiet
 ```
 
 ### 3.3 文档互链检查
-README.md 中引用的相对路径全部真实存在：
-- `docs/PRD.md` ✅ / `docs/architecture.md` ✅ / `docs/api-contract.md` ✅
-- `docs/data-model.md` ✅ / `docs/deployment.md` ✅ / `docs/operations.md` ✅
-- `docs/stage-1-report.md` ~ `docs/stage-4-report.md` ✅
-- `docs/qa-stage1-round1.md` ~ `docs/qa-stage3-round2.md` ✅
+README.md 中引用的相对路径全部真实存在（20/20）：
 - `.env.example` ✅ / `LICENSE` ✅
+- `docs/PRD.md` ~ `docs/stage-4-report.md`（15 篇） ✅
 - `scripts/demo_quickstart.sh` ✅ / `scripts/canary_drill.sh` ✅ / `scripts/failover_drill.sh` ✅
 
-### 3.4 演示脚本语法
+### 3.4 演示脚本验证
 ```
 $ bash -n scripts/demo_quickstart.sh   # OK
 $ bash -n scripts/canary_drill.sh      # OK
 $ bash -n scripts/failover_drill.sh    # OK
+```
+demo_quickstart.sh 第 3 步 seed 离线实测通过（租户+Key+端点全部生成成功）。
+
+### 3.5 README 命令抽查
+- `docker compose -f deploy/docker-compose.yml up -d` ✅ 路径正确
+- `docker compose -f deploy/docker-compose.yml exec app alembic upgrade head` ✅
+- `docker build -f deploy/Dockerfile -t llm-unified-platform:0.1.0 .` ✅
+
+### 3.6 alembic.ini 入库确认
+```
+$ git ls-files alembic.ini
+alembic.ini ✅
 ```
 
 ---

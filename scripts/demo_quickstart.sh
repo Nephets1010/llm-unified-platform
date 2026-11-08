@@ -54,7 +54,7 @@ try:
         name="demo-key", scopes=["chat", "admin"],
     )
     EndpointRepo(db).create_endpoint(
-        name="demo-gpt4o", provider="openai", protocol="openai",
+        provider="openai", protocol="openai",
         base_url="https://api.openai.com/v1", model_name="gpt-4o",
         credential_env="LLM_OPENAI_API_KEY", priority=1, weight=1.0,
         cost_per_1k_prompt=0.005, cost_per_1k_completion=0.015,

@@ -51,10 +51,10 @@ cp .env.example .env
 # 编辑 .env 填入真实密钥
 
 # 2. 起栈
-docker compose up -d
+docker compose -f deploy/docker-compose.yml up -d
 
 # 3. 执行数据库迁移（首次部署必须）
-docker compose exec app alembic upgrade head
+docker compose -f deploy/docker-compose.yml exec app alembic upgrade head
 
 # 4. 验证
 curl http://localhost:8000/healthz   # {"status":"ok"}
@@ -64,8 +64,8 @@ curl http://localhost:8000/readyz    # {"status":"ready","checks":{"database":tr
 ### 1.3 停止与清理
 
 ```bash
-docker compose down        # 停止服务（保留数据卷）
-docker compose down -v     # 停止并删除数据卷（慎用）
+docker compose -f deploy/docker-compose.yml down        # 停止服务（保留数据卷）
+docker compose -f deploy/docker-compose.yml down -v     # 停止并删除数据卷（慎用）
 ```
 
 ---
@@ -86,7 +86,7 @@ docker compose down -v     # 停止并删除数据卷（慎用）
 ### 2.2 构建镜像
 
 ```bash
-docker build -t llm-unified-platform:0.1.0 .
+docker build -f deploy/Dockerfile -t llm-unified-platform:0.1.0 .
 docker tag llm-unified-platform:0.1.0 llm-unified-platform:latest
 ```
 
@@ -94,16 +94,16 @@ docker tag llm-unified-platform:0.1.0 llm-unified-platform:latest
 
 ```bash
 # 1. 启动 PostgreSQL + Redis
-docker compose up -d postgres redis
+docker compose -f deploy/docker-compose.yml up -d postgres redis
 
 # 2. 等待健康检查通过
-docker compose ps  # 确认 postgres/redis 为 healthy
+docker compose -f deploy/docker-compose.yml ps  # 确认 postgres/redis 为 healthy
 
 # 3. 执行数据库迁移（必须在 App 启动前完成）
-docker compose run --rm app alembic upgrade head
+docker compose -f deploy/docker-compose.yml run --rm app alembic upgrade head
 
 # 4. 启动应用
-docker compose up -d app
+docker compose -f deploy/docker-compose.yml up -d app
 
 # 5. 验证
 curl http://localhost:8000/readyz
@@ -180,16 +180,16 @@ alembic history
 
 ```bash
 # 全量备份
-docker compose exec postgres pg_dump -U llm llm_platform > backup_$(date +%Y%m%d_%H%M%S).sql
+docker compose -f deploy/docker-compose.yml exec postgres pg_dump -U llm llm_platform > backup_$(date +%Y%m%d_%H%M%S).sql
 
 # 恢复
-docker compose exec -T postgres psql -U llm llm_platform < backup_20261108.sql
+docker compose -f deploy/docker-compose.yml exec -T postgres psql -U llm llm_platform < backup_20261108.sql
 ```
 
 建议通过 cron 每日自动备份：
 
 ```bash
-0 2 * * * cd /opt/llm-platform && docker compose exec postgres pg_dump -U llm llm_platform | gzip > /backups/llm_$(date +\%Y\%m\%d).sql.gz
+0 2 * * * cd /opt/llm-platform && docker compose -f deploy/docker-compose.yml exec postgres pg_dump -U llm llm_platform | gzip > /backups/llm_$(date +\%Y\%m\%d).sql.gz
 ```
 
 ### 4.2 call_log 归档（T-90 天 Parquet）
@@ -218,7 +218,7 @@ print(f'归档 {len(df)} 条记录')
 
 ```bash
 # 导出配置版本表
-docker compose exec postgres psql -U llm llm_platform -c \
+docker compose -f deploy/docker-compose.yml exec postgres psql -U llm llm_platform -c \
   "COPY config_revision TO STDOUT WITH CSV HEADER" > config_backup.csv
 ```
 
@@ -231,13 +231,13 @@ docker compose exec postgres psql -U llm llm_platform -c \
 git pull origin main
 
 # 2. 构建新镜像
-docker compose build app
+docker compose -f deploy/docker-compose.yml build app
 
 # 3. 执行迁移（如有新增）
-docker compose run --rm app alembic upgrade head
+docker compose -f deploy/docker-compose.yml run --rm app alembic upgrade head
 
 # 4. 滚动重启
-docker compose up -d app
+docker compose -f deploy/docker-compose.yml up -d app
 
 # 5. 验证
 curl http://localhost:8000/healthz

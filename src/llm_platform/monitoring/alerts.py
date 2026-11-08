@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import UTC
 from typing import Any
 
 from sqlalchemy.orm import Session
@@ -81,12 +82,12 @@ class AlertEngine:
 
     def resolve(self, alert_id: int) -> RiskAlert | None:
         """标记告警已处理。"""
-        from datetime import datetime, timezone
+        from datetime import datetime
 
         alert = self.db.get(RiskAlert, alert_id)
         if alert:
             alert.resolved = True
-            alert.resolved_at = datetime.now(timezone.utc)
+            alert.resolved_at = datetime.now(UTC)
             self.db.commit()
             self.db.refresh(alert)
         return alert

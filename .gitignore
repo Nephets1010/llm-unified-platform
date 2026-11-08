@@ -14,3 +14,15 @@ build/
 htmlcov/
 .DS_Store
 data/runtime/
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Local runtime data
+data/
+demo_api_key.txt
+
+# QA local verification scripts
+/qa_round2_verify.py

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import csv
 import io
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -30,7 +30,7 @@ class BillingService:
         from ..models.entities import CallLog
 
         if month is None:
-            month = datetime.now(timezone.utc).strftime("%Y-%m")
+            month = datetime.now(UTC).strftime("%Y-%m")
 
         stmt = select(
             CallLog.model,
@@ -43,7 +43,6 @@ class BillingService:
         if project_id is not None:
             stmt = stmt.where(CallLog.project_id == project_id)
         # 月份过滤（兼容 SQLite/PG）
-        month_pattern = f"{month}%"
         stmt = stmt.where(func.strftime("%Y-%m", CallLog.created_at) == month if self.db.bind.dialect.name == "sqlite" else func.to_char(CallLog.created_at, "YYYY-MM") == month)
         stmt = stmt.group_by(CallLog.model)
 

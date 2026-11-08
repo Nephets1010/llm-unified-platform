@@ -270,12 +270,12 @@ docker compose restart app
 | 现象 | 错误码 | 可能原因 | 处置 |
 |------|--------|----------|------|
 | 401 鉴权失败 | AUTH_001 | API Key 无效/过期/被禁用 | 检查 Key 状态，重新签发 |
-| 403 权限不足 | AUTH_002 | 角色不够 | 检查 JWT role / scopes |
-| 429 限流 | RATELIMIT_001 | 超出 RPM/TPM 限制 | 降低并发或申请提额 |
+| 403 权限不足 | AUTH_001 | 角色不够（同鉴权类错误） | 检查 JWT role / scopes |
+| 429 限流 | RATE_008 | 超出 RPM/TPM 限制 | 降低并发或申请提额 |
 | 429 预算超支 | QUOTA_002 | 月度预算用尽 | 等待下月或提额 |
-| 404 模型无路由 | ROUTE_001 | 无可用端点 | 检查端点配置与健康状态 |
+| 404 模型无路由 | ROUTE_003 | 无可用端点 | 检查端点配置与健康状态 |
 | 404 资源不存在 | NOT_FOUND_006 | ID 错误 | 确认资源 ID |
-| 502 上游错误 | UPSTREAM_001 | 厂商 API 故障 | 等待自动 failover，或禁用故障端点 |
+| 502 上游错误 | UPSTREAM_004 | 厂商 API 故障 | 等待自动 failover，或禁用故障端点 |
 | 504 超时 | UPSTREAM_004 | 上游响应慢 | 检查网络，调整 timeout |
 | 500 内部错误 | SYS_000 | 未捕获异常 | 查看日志 `docker compose logs app` |
 | 裸 500 | — | 代码 Bug | 收集 trace_id，查日志定位 |

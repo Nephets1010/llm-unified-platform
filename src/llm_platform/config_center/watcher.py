@@ -75,7 +75,7 @@ class ConfigWatcher:
                         else:
                             payload = raw if isinstance(raw, dict) else {}
                         notify_change(ns, payload)
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     continue
                 except Exception as exc:
                     logger.warning("config_watcher_message_error", error=str(exc))

@@ -148,10 +148,9 @@ class EvalRunner:
         Raises:
             ValidationError: checksum 不匹配（数据被篡改或规范化不一致）。
         """
+        from ..db.repositories.eval_repo import EvalRepo
         from ..errors import ValidationError
         from .datasets import compute_checksum
-
-        from ..db.repositories.eval_repo import EvalRepo
 
         repo = EvalRepo(self.db)
         dataset = repo.get_dataset(dataset_id)
