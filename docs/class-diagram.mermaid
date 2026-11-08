@@ -1,0 +1,182 @@
+classDiagram
+    direction TB
+
+    %% ===== 公共/底层 =====
+    class Settings {
+        +str database_url
+        +str redis_url
+        +str jwt_secret
+        +float request_timeout_s
+        +get_settings() Settings
+    }
+    class BaseAdapter {
+        <<abstract>>
+        +str provider
+        +chat(ChatRequest, base_url, api_key) ChatResponse*
+        +chat_stream(ChatRequest, base_url, api_key) AsyncIterator[str]*
+    }
+    class AdapterRegistry {
+        +register(BaseAdapter)
+        +get(provider) BaseAdapter
+    }
+    class ChatRequest {
+        +str model
+        +list~ChatMessage~ messages
+        +float temperature
+        +int max_tokens
+        +bool stream
+    }
+    class ChatResponse {
+        +str id
+        +str model
+        +list~ChatChoice~ choices
+        +Usage usage
+        +int latency_ms
+    }
+
+    BaseAdapter <|-- OpenAIAdapter
+    BaseAdapter <|-- AnthropicAdapter
+    BaseAdapter <|-- DeepSeekAdapter
+    BaseAdapter <|-- QwenAdapter
+    BaseAdapter <|-- OllamaAdapter
+    AdapterRegistry o-- BaseAdapter
+
+    %% ===== 鉴权与审计 =====
+    class AuthService {
+        +authenticate_api_key(str) AuthContext
+        +authenticate_jwt(str) AuthContext
+    }
+    class AuditLogger {
+        +log(actor, action, resource, detail)
+    }
+    class AuthContext {
+        +int tenant_id
+        +int project_id
+        +int api_key_id
+        +list~str~ scopes
+        +str role
+    }
+    AuthService --> AuthContext
+    AuthService --> AuditLogger
+
+    %% ===== 限流与预算 =====
+    class RateLimiter {
+        +check(tenant, key, model, tokens) bool
+    }
+    class BudgetGuard {
+        +check(tenant, cost) bool
+        +accumulate(tenant, cost)
+    }
+    class ConfigStore {
+        +get(namespace) dict
+        +put(namespace, payload) int version
+        +rollback(namespace)
+    }
+    class ConfigWatcher {
+        +subscribe(namespace, callback)
+    }
+    ConfigStore --> ConfigWatcher
+
+    %% ===== 路由与健康 =====
+    class Router {
+        +select(model, strategy) ModelEndpoint
+        +failover(exclude_ids) ModelEndpoint
+    }
+    class RouteStrategy {
+        <<interface>>
+        +pick(candidates) ModelEndpoint
+    }
+    RouteStrategy <|-- CostFirstStrategy
+    RouteStrategy <|-- LatencyFirstStrategy
+    RouteStrategy <|-- WeightedRoundRobinStrategy
+    RouteStrategy <|-- HealthAwareStrategy
+    class HealthRegistry {
+        +record(endpoint_id, ok, latency_ms)
+        +is_available(endpoint_id) bool
+    }
+    class CircuitBreaker {
+        +State state
+        +allow() bool
+        +on_success()
+        +on_failure()
+    }
+    Router --> RouteStrategy
+    Router --> HealthRegistry
+    Router --> CircuitBreaker
+
+    %% ===== 网关编排 =====
+    class GatewayService {
+        +chat_completion(ChatRequest, AuthContext) ChatResponse
+        +chat_completion_stream(ChatRequest, AuthContext) AsyncIterator
+    }
+    class CallLogBuffer {
+        +enqueue(CallLogRecord)
+        +flush_loop()
+    }
+    GatewayService --> AuthService
+    GatewayService --> RateLimiter
+    GatewayService --> BudgetGuard
+    GatewayService --> Router
+    GatewayService --> AdapterRegistry
+    GatewayService --> CallLogBuffer
+
+    %% ===== 评估与调度 =====
+    class EvalDataset {
+        +int id
+        +str name
+        +str version
+        +str checksum
+    }
+    class EvalRunner {
+        +run(EvalTask) list~EvalReport~
+    }
+    class EvalMetrics {
+        +accuracy(pred, ref) float
+        +rouge_l(pred, ref) float
+        +bertscore(pred, ref) float
+    }
+    class EvalReport {
+        +int task_id
+        +str model
+        +float overall_score
+        +dict metrics
+    }
+    class TaskScheduler {
+        +submit(EvalTask) int
+        +cancel(task_id)
+    }
+    class TaskStateMachine {
+        +transition(from, to) bool
+    }
+    class McpGateway {
+        +invoke(tool_name, args) dict
+    }
+    EvalRunner --> EvalMetrics
+    EvalRunner --> EvalDataset
+    EvalRunner --> EvalReport
+    EvalRunner --> AdapterRegistry
+    TaskScheduler --> TaskStateMachine
+    TaskScheduler --> EvalRunner
+    McpGateway --> AdapterRegistry
+
+    %% ===== 监控 =====
+    class MetricsCollector {
+        +inc_request(model, status)
+        +observe_latency(model, ms)
+    }
+    class BillingService {
+        +summary(tenant, month) dict
+        +export(format) file
+    }
+    class AlertEngine {
+        +evaluate() list~RiskAlert~
+    }
+    BillingService --> MetricsCollector
+    AlertEngine --> MetricsCollector
+
+    %% ===== 关系标注 =====
+    GatewayService ..> ConfigStore : 热更新订阅
+    Router ..> ConfigStore : 路由/灰度配置
+    RateLimiter ..> ConfigStore : 限流策略
+    CallLogBuffer ..> MetricsCollector : 打点（单向）
+    EvalRunner ..> MetricsCollector : 打点（单向）

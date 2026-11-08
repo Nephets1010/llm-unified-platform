@@ -1,0 +1,65 @@
+sequenceDiagram
+    autonumber
+    participant C as 业务接入方(OpenAI SDK)
+    participant MW as Middleware(trace_id)
+    participant API as api/v1/chat
+    participant AUTH as AuthService
+    participant RL as RateLimiter/BudgetGuard
+    participant GW as GatewayService
+    participant RTR as Router
+    participant ADP as BaseAdapter(厂商)
+    participant BUF as CallLogBuffer
+    participant PG as PostgreSQL
+    participant RD as Redis
+    participant MON as Metrics/Billing
+
+    C->>MW: POST /v1/chat/completions (Bearer sk-...)
+    MW->>MW: 生成 trace_id(UUIDv4) 写入 ContextVar
+    MW->>API: 转发(带 AuthContext 依赖)
+    API->>AUTH: authenticate_api_key(key_hash)
+    AUTH->>RD: GET akcache:{key_hash}
+    alt 缓存未命中
+        AUTH->>PG: SELECT api_key(key_hash) + tenant/project
+        AUTH->>RD: SET akcache 60s
+    end
+    AUTH-->>API: AuthContext(tenant/project/scopes) 或 401 AUTH_001(fail-closed)
+    API->>RL: check(key.rpm, key.tpm, tenant.budget)
+    RL->>RD: Lua 令牌桶扣减 + budget:{tenant}:{YYYYMM} 累计
+    alt 超预算
+        RL-->>API: 429 QUOTA_002 + 告警
+    else 超 RPM/TPM
+        RL-->>API: 429 RATE_008 + Retry-After
+    end
+    API->>GW: chat_completion(request, auth_ctx)
+    GW->>RTR: select(model, strategy)
+    RTR->>RD: 读健康度/熔断态/灰度权重
+    RTR-->>GW: ModelEndpoint(候选排序)
+    GW->>ADP: chat()/chat_stream()(base_url, credential_env 取密钥)
+    ADP->>ADP: 协议翻译 → 厂商 HTTP
+    ADP-->>GW: ChatResponse / SSE delta 流
+    alt 流式
+        GW-->>C: SSE 边收边发(data: chunk… / [DONE])
+        GW->>MON: first_token_latency_ms
+    else 非流式
+        GW-->>C: OpenAI 形状 JSON(含 usage + x_trace_id)
+    end
+    GW->>BUF: enqueue(CallLogRecord(prompt_hash, cost, tokens_estimated…))
+    BUF->>PG: 批量 executemany INSERT(每500条/1s, call_log 分区表)
+    GW->>MON: counter/latency/cost 打点(单向)
+    GW->>RD: 回写端点健康度 EWMA
+    Note over C,MON: 任一环节异常 → 统一错误信封 {error:{code,message,trace_id}}<br/>可重试错误 → Router.failover 下一候选(P95 ≤200ms)
+
+    %% ===== 评测任务流（异步） =====
+    participant ADM as 管理面 JWT
+    participant SCH as TaskScheduler/Worker
+    participant EV as EvalRunner
+
+    ADM->>SCH: POST /admin/v1/eval-tasks (202)
+    SCH->>PG: eval_task(status=pending)
+    SCH->>RD: LPUSH q:eval
+    SCH->>EV: worker BRPOP 领取 → status=running
+    EV->>EV: 批量推理(独立 eval: 限流桶) + EvalMetrics 纯函数
+    EV->>PG: eval_report 逐模型落库
+    EV->>SCH: status=success, progress=1.0
+    ADM->>SCH: GET /admin/v1/eval-tasks/{id}/reports
+    SCH-->>ADM: 指标 JSON(accuracy/rouge/latency/cost) 可导出
