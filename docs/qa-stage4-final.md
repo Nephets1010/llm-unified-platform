@@ -145,3 +145,39 @@ alembic history        → 0001_initial → 0002_platform_v2 (head) ✅
 另有 ruff 5 处违规且报告声明失实（BUG-M4-4）、运维手册错误码失实（DOC-M4-5）。
 
 **修复后可发布**：以上均为小范围修复（提交 1 个文件、脚本删 1 个参数、文档补路径前缀、`ruff --fix` + 改 4 个错误码），无架构级问题。测试基线健康（243 passed + 1 skipped），密钥安全检查通过（全历史无真实密钥、.env 未入库、LICENSE/CHANGELOG/CONTRIBUTING 齐备、git 历史规范）。
+
+---
+---
+
+# 回归核销（发布门禁，2026-11-08 第 2 轮）
+
+> 委派：M4 快速回归，聚焦上文问题清单 7 项定向核销，不重做全量探索。
+> 工程师返工：commit `5f28292` "fix: release-blocking fixes from final QA review"（共 9 commits，tag v0.1.0 已在最终提交重打——实测 `git rev-list -n1 v0.1.0` == `5f28292` == HEAD ✅）。
+
+## 逐项核销结果
+
+| # | 项 | 核销方法 | 结果 |
+|---|----|---------|------|
+| 1 | BUG-M4-1 仓库收口 | `git ls-files alembic.ini`→**在库**；`git status --porcelain`→**空（干净）**；`.gitignore` 含 `*.db`(L19)/`data/`(L24)/`data/runtime/`(L16)；`scripts/qa_round2_verify.py` **已入库**（root 旧副本已清） | **PASS** |
+| 2 | BUG-M4-2 demo seed | 离线实测脚本第 3 步逻辑（SQLite）：租户/Key/端点生成成功 `tenant=1 project=1 key=sk-50ebdaae4...`、demo_api_key.txt 写入成功、**无 TypeError**（`name=` 参数已移除，与 ModelEndpoint 字段对齐） | **PASS** |
+| 3 | BUG-M4-3 compose 路径 | 抽查全部 docker 命令（README 4 条 + deployment.md 15 条，远超要求 5 条）：**19/19 全部为 `-f deploy/docker-compose.yml`**；build 为 `docker build -f deploy/Dockerfile`；无裸 `docker compose` 残留 | **PASS** |
+| 4 | BUG-M4-4 ruff + 报告 | `ruff check src/ tests/ --quiet`→**exit 0**（5 处违规全修）；stage-4-report §3.2 已改为真实记录（exit code 0 与实测一致），发布就绪表数字 243 passed 与实测一致 | **PASS** |
+| 5 | DOC-M4-5 错误码 | operations.md 全文码表=AUTH_001/CONFIG_010/NOT_FOUND_006/QUOTA_002/RATE_008/ROUTE_003/SYS_000/UPSTREAM_004/VALID_005（均为 api-contract 真实码）；旧码 AUTH_002/RATELIMIT_001/ROUTE_001/UPSTREAM_001 在 **operations.md 零命中**。非阻塞残留：`scripts/seed_call_log.py:28,51` 仍含 UPSTREAM_001/RATELIMIT_001（演示数据生成器，不影响文档/API，NOTE 级） | **PASS**（附 1 条 NOTE） |
+| 6 | DOC-M4-6/7 文案 | README 配置表 `LLM_DATABASE_URL` 默认值已改为 `sqlite:///./llm_platform.db` 与 config.py:30 一致；一键演示措辞已改为"需先启动服务…自动完成：**检查服务**→seed→…"（不再声称"起服务"） | **PASS** |
+| 7 | 回归抽验 | ①全量 pytest：**243 passed, 1 skipped**（promtool）in 88.23s，无回归；②防回归 A 迁移 0001→0002 顺序实跑通过；③防回归 B README 17 个互链目标 17/17 仍全存在 | **PASS** |
+
+## 测试数字
+
+- pytest：**243 passed + 1 skipped = 244**（与声明一致）
+- ruff：exit 0
+- git：9 commits、tag v0.1.0 重打指向 5f28292（=HEAD）、status 干净、全历史无真实密钥（上轮已验，本轮未见新增）
+
+## 最终判定（发布门禁）
+
+# 判定：**可发布**
+
+7/7 项全部核销 PASS。上轮 3 高 2 中阻塞项（alembic.ini 入库、demo seed、compose 路径、ruff、错误码）全部修复并经独立实测验证；文档互链、迁移、告警码表等上轮通过项抽验无回归。
+
+**非阻塞残留（不阻碍发布，建议下个 patch 处理）**：
+- NOTE-1：`scripts/seed_call_log.py` 演示数据生成器仍输出旧错误码 UPSTREAM_001/RATELIMIT_001（应改 RATE_008/UPSTREAM_004）；
+- NOTE-2（沿袭 OBS-M4-8）：`/readyz` 在 redis:false 时仍返回 status:"ready"，语义请产品/架构确认。
